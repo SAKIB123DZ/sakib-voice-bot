@@ -1,43 +1,59 @@
-import telebot, requests, os
-from flask import Flask
-from threading import Thread
 
-# AAPKI SETTINGS (Pehle se bhari hui hain)
-API_TOKEN = "8466199285:AAG5dz2C3mGyTKb4mdJRq0k5ohebgVYqL6I" 
-ELEVENLABS_KEY = "sk_91ee4759fdca5fb2dbe6425b840cb4d4a4cd13fe6679e219"
-VOICE_ID = "mg9npuuaf8WJphS6E0Rt" 
+import telebot
+import requests
+
+# --- CONFIGURATION ---
+API_TOKEN = '8466199285:AAG5dz2C3mGyTKb4mdJRq0k5ohebgVYqL6I' # Aapka Token
+ELEVENLABS_API_KEY = 'R8_Ti12QajRr7a1hJgaVXpM6v4lkQFbBT23Buf8D' # Aapki Key
 
 bot = telebot.TeleBot(API_TOKEN)
-app = Flask('')
 
-@app.route('/')
-def home():
-    return "Bot is Alive!"
+# Voice IDs
+INTRO_VOICE_ID = "aE6av5ff68FOJqkR7mjG" # Zoya (Option 3)
+CLONE_VOICE_ID = "fG9s0SXJb213f4UxVHyG" # Secondary Voice
 
-def run():
-    # Koyeb ke liye port 8080 zaroori hai
-    app.run(host='0.0.0.0', port=8080)
+def generate_audio(text, voice_id):
+    """ElevenLabs se text-to-speech generate karne ke liye"""
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+    headers = {
+        "Accept": "audio/mpeg",
+        "Content-Type": "application/json",
+        "xi-api-key": ELEVENLABS_API_KEY
+    }
+    data = {
+        "text": text,
+        "model_id": "eleven_multilingual_v2",
+        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
+    }
+    try:
+        response = requests.post(url, json=data, headers=headers)
+        if response.status_code == 200:
+            return response.content
+    except Exception as e:
+        print(f"Error: {e}")
+    return None
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(message, "Assalamu Alaikum Sakib! Main zinda hoon aur kaam kar raha hoon. Koi bhi text bhejiye, main use voice mein badal dunga.")
+    # Option 3 Introduction Script (Zoya)
+    intro_text = "Finally! Aapne Sakib ke sabse Dangerous bot ko jagaya hai. Main Zoya hoon, aur meri speciality hai voice cloning. Main itni perfect hoon ki asli aur nakli ka farq mita sakti hoon. Chaliye, apni audio bhejiye aur mera magic dekhiye."
+    
+    bot.send_chat_action(message.chat.id, 'upload_voice')
+    audio_content = generate_audio(intro_text, INTRO_VOICE_ID)
+    
+    if audio_content:
+        # Zoya ki voice mein intro bhejna
+        bot.send_voice(message.chat.id, audio_content, caption="🎙️ **Zoya Mode Activated!**")
+    
+    bot.send_message(message.chat.id, "Main online hoon! Ab aap koi bhi text likhiye ya audio bhejkar mera magic dekhiye. 🔥")
 
-@bot.message_handler(func=lambda m: True)
-def handle_message(message):
-    try:
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
-        headers = {"xi-api-key": ELEVENLABS_KEY, "Content-Type": "application/json"}
-        data = {"text": message.text, "model_id": "eleven_multilingual_v2"}
-        response = requests.post(url, json=data, headers=headers)
-        if response.status_code == 200:
-            with open("reply.mp3", "wb") as f:
-                f.write(response.content)
-            bot.send_voice(message.chat.id, open("reply.mp3", "rb"))
-    except Exception as e:
-        print(f"Error: {e}")
+@bot.message_handler(func=lambda message: True)
+def handle_text(message):
+    """Text ko Voice ID 2 mein badalne ke liye"""
+    bot.send_chat_action(message.chat.id, 'upload_voice')
+    audio = generate_audio(message.text, CLONE_VOICE_ID)
+    if audio:
+        bot.send_voice(message.chat.id, audio)
 
-if __name__ == "__main__":
-    t = Thread(target=run)
-    t.start()
-    bot.polling(none_stop=True)
+bot.polling()
 
